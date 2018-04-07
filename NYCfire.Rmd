@@ -1,0 +1,227 @@
+---
+title: "NYCfire"
+author: "szumin"
+date: "3/14/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r setup & import data}
+install.packages("weatherData",repos = "http://cran.us.r-project.org")
+options(repos=structure(c(CRAN="YOUR FAVORITE MIRROR")))
+install.packages("leaflet")
+install.packages("ggmap")
+install.packages("RColorBrewer")
+install.packages("dplyr")
+install.packages("tidyverse")
+install.packages("ggplot2")
+install.packages("readr")
+install.packages("geosphere")
+library(geosphere)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(leaflet)
+library(ggmap)
+library(readr)
+library(RColorBrewer)
+
+severeincident <- read_csv("severe_incidents.csv")
+```
+
+```{r Question 1}
+content <- paste("Incident Type:",severeincident$INCIDENT_TYPE_DESC,"</br>",
+                 "Incident Time:",severeincident$INCIDENT_DATE_TIME,"</br>",
+                 "Clear Time:",severeincident$LAST_UNIT_CLEARED_DATE_TIME,"</br>",
+                 "Main Action Take:", severeincident$ACTION_TAKEN1_DESC)
+area = colorFactor("#e31a1c",domain = severeincident$BOROUGH_DESC)
+color_area = area(severeincident$BOROUGH_DESC)
+
+map <- leaflet(severeincident) %>%
+  addTiles('http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png') %>%
+  setView(lat=40.713108, lng=-73.910728, zoom = 11)%>%
+  addCircles(col = color_area, popup = content)
+
+map
+  
+```
+
+```{r Question 2}
+###2a
+
+#grouping by the type of property
+
+severeincident <- severeincident %>% mutate(property = PROPERTY_USE_DESC)
+
+severeincident <- separate(severeincident,property, c("ptype","ptypedetail"))
+
+ptype1 <- NA
+ptype1 <- ifelse(severeincident$ptype > 0 & severeincident$ptype < 200, "Assembly",ptype1)
+ptype1 <- ifelse(severeincident$ptype >= 200 & severeincident$ptype < 300, "Educational Use",ptype1)
+ptype1 <- ifelse(severeincident$ptype >= 300 & severeincident$ptype < 400, "Health Care", ptype1)
+ptype1 <- ifelse(severeincident$ptype >= 400 & severeincident$ptype < 500, "Residential Use", ptype1)
+ptype1 <- ifelse(severeincident$ptype >= 500 & severeincident$ptype < 600, "Business", ptype1)
+ptype1 <- ifelse(severeincident$ptype >= 600 & severeincident$ptype < 700, "Industrial Use", ptype1)
+ptype1 <- ifelse(severeincident$ptype >= 700 & severeincident$ptype < 800, "Manufaturing", ptype1)
+ptype1 <- ifelse(severeincident$ptype >= 800 & severeincident$ptype < 900, "Storage", ptype1)
+ptype1 <- ifelse(severeincident$ptype >= 900, "Special Property", ptype1)
+ptype1 <- ifelse(is.na(ptype1), "Other Property",ptype1)
+severeincident$propertytype <- ptype1
+
+#add color
+ptypec = colorFactor("Set1", domain = severeincident$propertytype)
+color_ptype = ptypec(severeincident$propertytype)
+
+#content
+content2 <- paste("Property Type:",severeincident$propertytype,"</br>",
+                 "Incident Time:",severeincident$INCIDENT_DATE_TIME,"</br>",
+                 "Clear Time:",severeincident$LAST_UNIT_CLEARED_DATE_TIME,"</br>",
+                 "Main Action Take:", severeincident$ACTION_TAKEN1_DESC)
+
+map2 <- leaflet(severeincident) %>%
+  addTiles('http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png') %>%
+  setView(lat=40.713108, lng=-73.910728, zoom = 11)
+
+map_q2 <- map2%>%
+  addCircles(col = color_ptype, popup = content2)
+
+map_q2
+
+###2b
+
+mclu <- map2%>%
+  addCircleMarkers(col = color_ptype, popup = content2, clusterOptions = markerClusterOptions())
+  
+mclu
+```
+
+```{r Question 3}
+
+content3 <- paste("Property Type:",severeincident$propertytype,"</br>",
+                  "Severity Level:",severeincident$UNITS_ONSCENE,"</br>",
+                 "Incident Time:",severeincident$INCIDENT_DATE_TIME,"</br>",
+                 "Clear Time:",severeincident$LAST_UNIT_CLEARED_DATE_TIME,"</br>",
+                 "Main Action Take:", severeincident$ACTION_TAKEN1_DESC)
+radius <- findInterval(severeincident$UNITS_ONSCENE,c(15,30,45)) * 2
+severeincident <- severeincident %>% mutate(radius)
+
+map3 <- map2 %>% 
+  addCircleMarkers(
+    group = "Incident",
+    radius = radius,
+    color = color_ptype,
+    popup = content3,
+    fillOpacity = 0.5
+    )
+##Firehouse
+firehouse <- read_csv("FDNY_Firehouse_Listing.csv")
+
+contentf <- paste("Firehouse:",firehouse$FacilityName,"</br>",
+                  "Address:", firehouse$FacilityAddress, "</br>")
+fireicon <- iconList(firehouse = makeIcon("hydrant.png"))
+
+map3 <- map3 %>%
+  addMarkers(group = "Firehouse", data = firehouse, lat = firehouse$Latitude, lng = firehouse$Longitude, popup = contentf, icon = fireicon) %>%
+  addLayersControl(overlayGroups = c("Incident","Firehouse"),
+                   options = layersControlOptions(collapsed = FALSE))
+map3
+
+```
+
+```{r Question 4}
+
+##append two datasets
+
+
+incidentdata <- select(severeincident, IM_INCIDENT_KEY,Latitude,Longitude) %>% rename(ID = IM_INCIDENT_KEY)
+
+firedata <- select(firehouse, FacilityName, Latitude, Longitude)
+firedata <- rename(firedata, ID = FacilityName)
+
+## calculate the distance
+
+firedata = na.omit(firedata)
+incidentdata = na.omit(incidentdata)
+distance <- matrix(data = NA, nrow = nrow(incidentdata), ncol = 3)
+for (i in 1:nrow(incidentdata)){ 
+  for(j in 1:nrow(firedata)){
+    temp <- distm(c(incidentdata$Latitude[i],incidentdata$Longitude[i]),c(firedata$Latitude[j],firedata$Longitude[j]), fun = distHaversine)
+    if (j==1){ 
+      mindist = temp; distance[i,1]=incidentdata$ID[i]; distance[i,2]=firedata$ID[j]; distance[i,3] = mindist}
+    else{
+      if(temp<mindist){
+        mindist = temp; distance[i,1]=incidentdata$ID[i]; distance[i,2]=firedata$ID[j]; distance[i,3] = mindist
+        }
+    }
+  }
+}
+
+# clean the data 
+
+
+distance <- data.frame(distance)
+distance$distance <- as.numeric(distance$X3)
+distance$distance <- round(distance$distance,2)
+
+incident_with_time <-
+  severeincident %>%
+  mutate(
+    incident_time = lubridate::mdy_hms(INCIDENT_DATE_TIME),
+    arrival_time = lubridate::mdy_hms(ARRIVAL_DATE_TIME),
+    seconds_time_difference = arrival_time - incident_time
+  )
+
+incident_with_time1 <- incident_with_time
+incident_with_time1 <- incident_with_time1 %>%
+  select(IM_INCIDENT_KEY,BOROUGH_DESC,Latitude,Longitude,incident_time,arrival_time,seconds_time_difference)
+
+incident_with_time1 <- na.omit(incident_with_time1)
+incident_with_time1$distance <- distance$distance
+
+# plot
+
+plot4a <- ggplot(incident_with_time1, aes(x = distance, y = seconds_time_difference, col = BOROUGH_DESC))+
+  geom_point()+
+  ggtitle("Response time and Distance between Incident and Firehouse")+
+  theme_bw()+
+  theme(legend.position = "right",
+        legend.title = element_blank(),
+        axis.text.x = element_text(angle = -30, vjust = 1, hjust = 0))+
+  xlab("Distance(km)")+
+  ylab("Response Time(seconds)")+
+  scale_color_brewer(type = "qual")+
+  scale_x_continuous(limits = c(0,3000))+
+  scale_y_continuous(limits = c(0,1500))
+  
+
+
+##4b
+
+
+#plot
+
+library(RColorBrewer)
+
+incident_with_time$seconds_time_difference <- as.numeric(incident_with_time$seconds_time_difference)
+
+content4 <- paste("Property Type:",incident_with_time$INCIDENT_TYPE_DESC,"</br>",
+                  "Severity Level:",incident_with_time$UNITS_ONSCENE,"</br>",
+                 "Response Time:", incident_with_time$seconds_time_difference, "seconds","</br>",
+                 "Distance:", incident_with_time1$distance,"km")
+
+spectral <- brewer.pal(10, "Spectral") %>% rev()
+timecolor <- colorQuantile(spectral, incident_with_time$seconds_time_difference, n = 10)
+
+map4b <- leaflet(incident_with_time) %>%
+  addTiles('http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png') %>%
+  setView(lat=40.713108, lng=-73.910728, zoom = 11)%>%
+  addCircleMarkers(color = timecolor(incident_with_time$seconds_time_difference), radius = 1, popup = content4)%>%
+  addLegend(title = "Response Time in Second", pal = timecolor, values = incident_with_time$seconds_time_difference, opacity = 1, position = "topright")
+
+plot4a
+map4b
+
+```
