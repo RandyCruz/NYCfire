@@ -25,9 +25,9 @@ We now want to investigate whether the distance of the incident from the nearest
 
 a) Calculate Distance
 
-For all incident locations, identify the nearest firehouse and calculate the distance between the firehouse and the incident location. Provide a scatter plot showing the time until the first engine arrived (the variables INCIDENT_DATE_TIME and ARRIVAL_DATE_TIME) will be helpful. If there are any interesting patterns to highlight, feel free to do so.
+For all incident locations, identify the nearest firehouse and calculate the distance between the firehouse and the incident location. Provide a scatter plot showing the time until the first engine arrived (the variables INCIDENT_DATE_TIME and ARRIVAL_DATE_TIME) will be helpful.
 
 b) Map of Response Times
 
-Provide a map visualization of response times. Feel free to differentiate by incident type / property affected etc. if that is interesting.
+Provide a map visualization of response times. Feel free to differentiate by incident type / property affected.
 
