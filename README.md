@@ -5,6 +5,7 @@
 2. Layers and Clusters
 
 a) Color by Type of Property
+
 b) Cluster
 
 
