@@ -1,11 +1,9 @@
-# project2_NYCfire
+I map:
 1. Location of Severe Fires
-
 
 2. Layers and Clusters
 
 a) Color by Type of Property
-
 b) Cluster
 
 
@@ -14,8 +12,6 @@ b) Cluster
 4. Distance from Firehouse and Response Time
 
 a) Calculate Distance
-
-
 b) Map of Response Times
 
 
